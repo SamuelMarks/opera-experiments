@@ -1,6 +1,3 @@
-// Lachesis Consensus Algorithm by FANTOM Lab.
-// 2019. 03. 13 (Wed) Last modified.
-
 package main
 
 import (
@@ -11,8 +8,8 @@ import (
 
 const commandLength = 12
 const nodeNumber = 4
-const supraMajor = 3 // oversee 2/3
-const subMajor = 2 // see 1/3
+const supraMajor = 3
+const subMajor = 2
 
 //DNSaddress nitailizes ip
 var DNSaddress = []string{
@@ -37,7 +34,7 @@ func main() {
 
 		go oc.Sync()
 
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Second * 30)
 	case "print":
 		oc.PrintChain()
 

@@ -1,6 +1,3 @@
-// Lachesis Consensus Algorithm by FANTOM Lab.
-// 2019. 03. 13 (Wed) Last modified.
-
 package main
 
 import (
@@ -15,8 +12,7 @@ import (
 const dbFile = "Operachain_%s.db"
 const blocksBucket = "blocks"
 
-//Operachain(Node) structrue info.
-
+//Operachain structrue
 type Operachain struct {
 	Db           *bolt.DB
 	MakeMutex    *sync.RWMutex
