@@ -1,6 +1,3 @@
-// Lachesis Consensus Algorithm by FANTOM Lab.
-// 2019. 03. 13 (Wed) Last modified.
-
 package main
 
 import (

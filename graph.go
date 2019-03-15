@@ -1,6 +1,3 @@
-// Lachesis Consensus Algorithm by FANTOM Lab.
-// 2019. 03. 13 (Wed) Last modified.
-
 package main
 
 import (
@@ -12,7 +9,6 @@ import (
 )
 
 //Vertex is imaginary event block
-
 type Vertex struct {
 	Root        bool
 	Clotho      bool
@@ -78,7 +74,6 @@ func (oc *Operachain) NewGraph() *Graph {
 }
 
 //BuildGraph initialize graph based on DB
-//When each node generates an event block, sub-event can be searched based on each own node
 func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *Vertex {
 	newVertex, exists := rV[string(hash)]
 	if exists {
@@ -89,7 +84,6 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 
 	var block *Block
 
-	// The Database that obtains the event via the hash value
 	err := oc.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		encodedBlock := b.Get(hash)
@@ -101,7 +95,7 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 	if err != nil {
 		log.Panic(err)
 	}
-	// The vertex with virtual event connection information because it is not possible to store all event information in memory
+
 	newVertex.Signature = block.Signature
 	prevSelf = block.PrevSelfHash
 	prevOther = block.PrevOtherHash
@@ -119,7 +113,7 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 	}
 
 	// Complete searching ancestor blocks of newVertex
-	// Root selction
+
 	if newVertex.PrevSelf != nil {
 		if newVertex.PrevSelf.Frame == newVertex.PrevOther.Frame {
 			newVertex.FlagTable = Merge(newVertex.PrevSelf.FlagTable, newVertex.PrevOther.FlagTable, newVertex.PrevSelf.Frame)
@@ -129,7 +123,6 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 				newVertex.RootTable = Copy(newVertex.FlagTable)
 				newVertex.FlagTable = make(map[string]int)
 				newVertex.FlagTable[newVertex.Signature] = newVertex.Frame
-				fmt.Println("Root:", newVertex)
 
 				g.ChkClotho[strconv.Itoa(newVertex.Frame)+"_"+newVertex.Signature] = newVertex
 				// Clotho check
@@ -151,7 +144,6 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 			newVertex.RootTable = Merge(newVertex.PrevSelf.FlagTable, otherRoot.RootTable, newVertex.Frame-1)
 			newVertex.FlagTable = Copy(newVertex.PrevOther.FlagTable)
 			newVertex.FlagTable[newVertex.Signature] = newVertex.Frame
-			fmt.Println("Root:", newVertex)
 
 			g.ChkClotho[strconv.Itoa(newVertex.Frame)+"_"+newVertex.Signature] = newVertex
 			// Clotho check
@@ -159,7 +151,6 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 
 			g.AtroposTimeSelection(newVertex)
 		}
-		// Genesis block creation
 	} else {
 		newVertex.Root = true
 		newVertex.Frame = 0
@@ -171,26 +162,16 @@ func (oc *Operachain) BuildGraph(hash []byte, rV map[string]*Vertex, g *Graph) *
 }
 
 // ClothoChecking checks whether ancestor of the vertex is colotho
-// Clotho selection
-
 func (g *Graph) ClothoChecking(v *Vertex) {
 	// Clotho check
-	// 2-dimension matrix
 	ccList := make(map[string]map[string]bool)
-
-	// Among the Frame 1, 2, 3 and 4, the Frame 4 step can check who is the Clotho
-	// Root talbe stores subframe root hash information
 
 	for key, val := range v.RootTable {
 		prevRoot, exists := g.ChkClotho[strconv.Itoa(val)+"_"+key]
 		if !exists {
 			continue
 		}
-		//fmt.Println(prevRoot.RootTable)
 
-		//ccTmp := make(map[string]int)
-
-		//fmt.Println(prevRoot.RootTable)
 		for rkey, rval := range prevRoot.RootTable {
 			prevPrevRoot, exists := g.ChkClotho[strconv.Itoa(rval)+"_"+rkey]
 			if !exists {
@@ -202,46 +183,48 @@ func (g *Graph) ClothoChecking(v *Vertex) {
 				if !exists {
 					continue
 				}
+				if ccList[strconv.Itoa(rrval)+"_"+rrkey] == nil {
+					ccList[strconv.Itoa(rrval)+"_"+rrkey] = make(map[string]bool)
+				}
 
 				_, exists2 := ccList[strconv.Itoa(rrval)+"_"+rrkey][strconv.Itoa(rval)+"_"+rkey]
 				if !exists2 {
 					ccList[strconv.Itoa(rrval)+"_"+rrkey][strconv.Itoa(rval)+"_"+rkey] = true
 				}
+
 			}
 		}
 	}
 
-	//fmt.Println("Checking Clotho~~~")
-	//fmt.Println(v)
-	fmt.Println(ccList)
 	for key, val := range ccList {
 		if len(val) >= subMajor {
 			prevRoot := g.ChkClotho[key]
 			g.ClothoList[key] = prevRoot
 			prevRoot.Clotho = true
-			g.TimeTable[strconv.Itoa(v.Frame)+"_"+v.Signature][strconv.Itoa(prevRoot.Frame)+"_"+prevRoot.Signature] = v.Timestamp // Timestamp is "Lamport timestamp"
-			fmt.Printf("%s is assigned as Clotho\n", key)
+			if g.TimeTable[strconv.Itoa(v.Frame)+"_"+v.Signature] == nil {
+				g.TimeTable[strconv.Itoa(v.Frame)+"_"+v.Signature] = make(map[string]int64)
+			}
+			g.TimeTable[strconv.Itoa(v.Frame)+"_"+v.Signature][strconv.Itoa(prevRoot.Frame)+"_"+prevRoot.Signature] = v.Timestamp
+			fmt.Printf("%s is assigned as Clotho by %s\n", key, strconv.Itoa(v.Frame)+"_"+v.Signature)
 		}
 	}
 }
 
 // AtroposTimeSelection selects time from set of previous vertex
-// Atropos Selection
-
 func (g *Graph) AtroposTimeSelection(v *Vertex) {
 	countMap := make(map[string]map[int64]int)
 
-	for prevKey := range v.RootTable {
-		tmpTable := g.TimeTable[prevKey]
-		for key, val := range tmpTable {
-			_, exists := countMap[key]
-			if exists {
-				cval, exists2 := countMap[key][val]
-				if exists2 {
-					countMap[key][val] = cval + 1
-				} else {
-					countMap[key][val] = 1
-				}
+	for prevKey, prevVal := range v.RootTable {
+		prevSig := strconv.Itoa(prevVal) + "_" + prevKey
+		for key, val := range g.TimeTable[prevSig] {
+
+			if countMap[key] == nil {
+				countMap[key] = make(map[int64]int)
+			}
+			//fmt.Println("key")
+			cval, exists2 := countMap[key][val]
+			if exists2 {
+				countMap[key][val] = cval + 1
 			} else {
 				countMap[key][val] = 1
 			}
@@ -253,7 +236,7 @@ func (g *Graph) AtroposTimeSelection(v *Vertex) {
 		var maxInd int64
 
 		clotho := g.ClothoList[key]
-		if (v.Frame-clotho.Frame)%4 == 0 { // h = 4 in minimum round
+		if (v.Frame-clotho.Frame)%4 == 0 {
 			for time, count := range val {
 				if maxVal == 0 {
 					maxVal = count
@@ -275,7 +258,7 @@ func (g *Graph) AtroposTimeSelection(v *Vertex) {
 			}
 
 			if maxVal >= supraMajor {
-				print("atropos")
+				fmt.Println("atropos", clotho.Signature, clotho.Frame, maxInd)
 				clotho.Atropos = true
 				clotho.AtroposTime = maxInd
 				g.AssignAtroposTime(clotho)
@@ -287,7 +270,6 @@ func (g *Graph) AtroposTimeSelection(v *Vertex) {
 }
 
 // AssignAtroposTime is
-// when Atropos is selected, they are sorted by Atropos selection rule
 func (g *Graph) AssignAtroposTime(atropos *Vertex) {
 	batchList := []*Vertex{}
 	sortList := []*Vertex{}
@@ -300,8 +282,11 @@ func (g *Graph) AssignAtroposTime(atropos *Vertex) {
 		}
 
 		currentVertex := batchList[0]
-		sortList = append([]*Vertex{currentVertex}, sortList...)
 		batchList = batchList[1:]
+		//fmt.Println(1, sortList)
+
+		sortList = append([]*Vertex{currentVertex}, sortList...)
+		//fmt.Println(2, sortList)
 		chk := false
 		if currentVertex.AtroposTime == 0 || aTime < currentVertex.AtroposTime {
 			currentVertex.AtroposTime = aTime
@@ -317,8 +302,8 @@ func (g *Graph) AssignAtroposTime(atropos *Vertex) {
 			}
 		}
 	}
-
-	//Sort vertex (InsertSorting) because in one vector, new events are sorted behind the vector, making it efficient to check from the last order
+	//fmt.Println(sortList)
+	//Sort vertex
 	for {
 		if len(sortList) == 0 {
 			break
@@ -330,6 +315,9 @@ func (g *Graph) AssignAtroposTime(atropos *Vertex) {
 		index := len(g.SortList) - 1
 
 		for {
+			if index < 0 {
+				break
+			}
 			compVertex := g.SortList[index]
 			if compVertex.AtroposTime < currentVertex.AtroposTime {
 				break
@@ -356,24 +344,21 @@ func (g *Graph) AssignAtroposTime(atropos *Vertex) {
 
 			index--
 		}
-
-		Insert(g.SortList, index+1, currentVertex)
+		g.Insert(index+1, currentVertex)
 	}
-
-	// all events that have completed the Atropos selection are sorted by one-dimensional vectors.
-	// (All of the lines and rear relationship are set of events that have been sorted) => One-dimensional vector: can act as the the Main Chain.
-
 }
 
 // Insert item into list
-func Insert(sl []*Vertex, i int, v *Vertex) {
-	if i == len(sl) {
-		sl = append(sl, v)
+func (g *Graph) Insert(i int, v *Vertex) {
+	if i == len(g.SortList) {
+		g.SortList = append(g.SortList, v)
+
 		return
 	}
-	sl = append(sl, nil)
-	copy(sl[i+1:], sl[i:])
-	sl[i] = v
+	g.SortList = append(g.SortList, nil)
+	copy(g.SortList[i+1:], g.SortList[i:])
+	g.SortList[i] = v
+
 }
 
 // Merge is union between parent flagtable
